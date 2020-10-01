@@ -53,11 +53,6 @@ public class ADTProcessor extends AbstractProcessor {
      */
     private Messager messager;
 
-    /**
-     * 模版参数
-     */
-    private Name returnTypeVar;
-
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
@@ -66,7 +61,6 @@ public class ADTProcessor extends AbstractProcessor {
         Context context = ((JavacProcessingEnvironment) processingEnv).getContext();
         this.treeMaker = TreeMaker.instance(context);
         this.names = Names.instance(context);
-        this.returnTypeVar = names.T;
     }
 
     @Override
@@ -140,7 +134,7 @@ public class ADTProcessor extends AbstractProcessor {
         List<JCTree.JCExpression> implementing = List.nil();
         List<JCTree> defs = List.nil();
 
-        typarams = typarams.append(treeMaker.TypeParameter(returnTypeVar, List.nil()));
+        typarams = typarams.append(treeMaker.TypeParameter(names.T, List.nil()));
 
         for (JCTree.JCClassDecl jcClassDecl : jcClassDeclList) {
             defs = defs.append(makeCaseFunction(jcClassDecl));
@@ -152,7 +146,7 @@ public class ADTProcessor extends AbstractProcessor {
     private JCTree.JCMethodDecl makeCaseFunction(JCTree.JCClassDecl jcClassDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC);
         Name name = names.fromString(CASE_PREFIX + jcClassDecl.name);
-        JCTree.JCIdent restype = treeMaker.Ident(returnTypeVar);
+        JCTree.JCIdent restype = treeMaker.Ident(names.T);
 
         List<JCTree.JCTypeParameter> typarams = List.nil();
         List<JCTree.JCVariableDecl> params = List.nil();
@@ -179,8 +173,8 @@ public class ADTProcessor extends AbstractProcessor {
         List<JCTree.JCExpression> implementing = List.nil();
         List<JCTree> defs = List.nil();
 
-        typarams = typarams.append(treeMaker.TypeParameter(returnTypeVar, List.nil()));
-        implementing = implementing.append(treeMaker.TypeApply(treeMaker.Ident(visitorDecl.name), List.<JCTree.JCExpression>nil().append(treeMaker.Ident(returnTypeVar))));
+        typarams = typarams.append(treeMaker.TypeParameter(names.T, List.nil()));
+        implementing = implementing.append(treeMaker.TypeApply(treeMaker.Ident(visitorDecl.name), List.<JCTree.JCExpression>nil().append(treeMaker.Ident(names.T))));
 
         defs = defs.append(makeDefaultOtherwiseMethod(jcClassDecl));
         for (JCTree def : visitorDecl.defs) {
@@ -200,7 +194,7 @@ public class ADTProcessor extends AbstractProcessor {
     private JCTree.JCMethodDecl makeDefaultCaseMethod(JCTree.JCMethodDecl jcMethodDecl) {
         JCTree.JCModifiers mods = jcMethodDecl.mods;
         Name name = jcMethodDecl.name;
-        JCTree.JCIdent restype = treeMaker.Ident(returnTypeVar);
+        JCTree.JCIdent restype = treeMaker.Ident(names.T);
         List<JCTree.JCTypeParameter> typarams = List.nil();
         List<JCTree.JCVariableDecl> params = jcMethodDecl.params;
         List<JCTree.JCExpression> thrown = jcMethodDecl.thrown;
@@ -220,7 +214,7 @@ public class ADTProcessor extends AbstractProcessor {
     private JCTree makeDefaultOtherwiseMethod(JCTree.JCClassDecl jcClassDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC|ABSTRACT);
         Name name = names.fromString(OTHERWISE_FUNCTION);
-        JCTree.JCIdent restype = treeMaker.Ident(returnTypeVar);
+        JCTree.JCIdent restype = treeMaker.Ident(names.T);
         List<JCTree.JCTypeParameter> typarams = List.nil();
         List<JCTree.JCVariableDecl> params = List.nil();
         List<JCTree.JCExpression> thrown = List.nil();
@@ -241,19 +235,19 @@ public class ADTProcessor extends AbstractProcessor {
     private JCTree.JCMethodDecl makeMatchMethodDecl(JCTree.JCClassDecl visitorDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC|ABSTRACT);
         Name name = names.fromString(MATCH_FUNCTION);
-        JCTree.JCIdent restype = treeMaker.Ident(returnTypeVar);
+        JCTree.JCIdent restype = treeMaker.Ident(names.T);
         List<JCTree.JCTypeParameter> typarams = List.nil();
         List<JCTree.JCVariableDecl> params = List.nil();
         List<JCTree.JCExpression> thrown = List.nil();
         JCTree.JCBlock body = null;
         JCTree.JCExpression defaultValue = null;
 
-        typarams = typarams.append(treeMaker.TypeParameter(returnTypeVar, List.nil()));
+        typarams = typarams.append(treeMaker.TypeParameter(names.T, List.nil()));
 
         JCTree.JCVariableDecl param = treeMaker.VarDef(
                 treeMaker.Modifiers(PARAMETER),
                 names.fromString(MATCH_PARAM_NAME),
-                treeMaker.TypeApply(treeMaker.Ident(visitorDecl.name), List.<JCTree.JCExpression>nil().append(treeMaker.Ident(returnTypeVar))),
+                treeMaker.TypeApply(treeMaker.Ident(visitorDecl.name), List.<JCTree.JCExpression>nil().append(treeMaker.Ident(names.T))),
                 null
         );
         params = params.append(param);
@@ -265,19 +259,19 @@ public class ADTProcessor extends AbstractProcessor {
     private JCTree.JCMethodDecl makeSubclassMatchMethod(JCTree.JCClassDecl subclassDecl, JCTree.JCClassDecl visitorDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC);
         Name name = names.fromString(MATCH_FUNCTION);
-        JCTree.JCIdent restype = treeMaker.Ident(returnTypeVar);
+        JCTree.JCIdent restype = treeMaker.Ident(names.T);
         List<JCTree.JCTypeParameter> typarams = List.nil();
         List<JCTree.JCVariableDecl> params = List.nil();
         List<JCTree.JCExpression> thrown = List.nil();
         JCTree.JCBlock body = null;
         JCTree.JCExpression defaultValue = null;
 
-        typarams = typarams.append(treeMaker.TypeParameter(returnTypeVar, List.nil()));
+        typarams = typarams.append(treeMaker.TypeParameter(names.T, List.nil()));
 
         JCTree.JCVariableDecl param = treeMaker.VarDef(
                 treeMaker.Modifiers(PARAMETER),
                 names.fromString(MATCH_PARAM_NAME),
-                treeMaker.TypeApply(treeMaker.Ident(visitorDecl.name), List.<JCTree.JCExpression>nil().append(treeMaker.Ident(returnTypeVar))),
+                treeMaker.TypeApply(treeMaker.Ident(visitorDecl.name), List.<JCTree.JCExpression>nil().append(treeMaker.Ident(names.T))),
                 null
         );
         params = params.append(param);

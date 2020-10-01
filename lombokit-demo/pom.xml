@@ -34,7 +34,6 @@
                     <verbose>true</verbose>
                     <annotationProcessors>
                         <annotationProcessor>
-                            org.lombokit.MyGetterProcessor
                             org.lombokit.ADTProcessor
                         </annotationProcessor>
                     </annotationProcessors>
