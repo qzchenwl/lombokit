@@ -72,53 +72,53 @@ public class ADTProcessor extends AbstractProcessor {
             JCTree tree = javacTrees.getTree(e);
             tree.accept(new TreeTranslator() {
                 @Override
-                public void visitClassDef(JCTree.JCClassDecl jcClassDecl) {
+                public void visitClassDef(JCTree.JCClassDecl adtClassDef) {
                     // ADT 父类必须是 abstract class
-                    if ((jcClassDecl.mods.flags & ABSTRACT) == 0) {
+                    if ((adtClassDef.mods.flags & ABSTRACT) == 0) {
                         return;
                     }
-                    if ((jcClassDecl.mods.flags & INTERFACE) != 0) {
+                    if ((adtClassDef.mods.flags & INTERFACE) != 0) {
                         return;
                     }
-                    if (jcClassDecl.extending != null) {
+                    if (adtClassDef.extending != null) {
                         return;
                     }
 
-                    List<JCTree.JCClassDecl> jcClassDeclList = List.nil();
-                    for (JCTree jcTree : jcClassDecl.defs) {
+                    List<JCTree.JCClassDecl> adtSubclassDeclList = List.nil();
+                    for (JCTree jcTree : adtClassDef.defs) {
                         if (!jcTree.getKind().equals(Tree.Kind.CLASS)) {
                             continue;
                         }
-                        JCTree.JCClassDecl jcInnerClassDecl = (JCTree.JCClassDecl) jcTree;
+                        JCTree.JCClassDecl adtSubclassDecl = (JCTree.JCClassDecl) jcTree;
                         // ADT子类必须为非abstract
-                        if ((jcInnerClassDecl.mods.flags & ABSTRACT) != 0) {
+                        if ((adtSubclassDecl.mods.flags & ABSTRACT) != 0) {
                             continue;
                         }
-                        if (!(jcInnerClassDecl.extending instanceof JCTree.JCIdent)) {
+                        if (!(adtSubclassDecl.extending instanceof JCTree.JCIdent)) {
                             continue;
                         }
-                        JCTree.JCIdent extending = (JCTree.JCIdent) jcInnerClassDecl.extending;
-                        if (!extending.sym.equals(jcClassDecl.sym)) {
+                        JCTree.JCIdent extending = (JCTree.JCIdent) adtSubclassDecl.extending;
+                        if (!extending.sym.equals(adtClassDef.sym)) {
                             continue;
                         }
-                        messager.printMessage(NOTE, "Found subclass " + jcInnerClassDecl.sym + " of " + jcClassDecl.sym);
-                        jcClassDeclList = jcClassDeclList.append(jcInnerClassDecl);
+                        messager.printMessage(NOTE, "Found subclass " + adtSubclassDecl.sym + " of " + adtClassDef.sym);
+                        adtSubclassDeclList = adtSubclassDeclList.append(adtSubclassDecl);
                     }
 
-                    messager.printMessage(NOTE, "Total count of subclasses of " + jcClassDecl.sym + ":" + jcClassDeclList.size());
+                    messager.printMessage(NOTE, "Total count of subclasses of " + adtClassDef.sym + ":" + adtSubclassDeclList.size());
 
-                    JCTree.JCClassDecl visitorDecl = makeVisitorDecl(jcClassDeclList);
-                    jcClassDecl.defs = jcClassDecl.defs.append(visitorDecl);
+                    JCTree.JCClassDecl visitorDecl = makeVisitorDecl(adtSubclassDeclList);
+                    adtClassDef.defs = adtClassDef.defs.append(visitorDecl);
 
-                    JCTree.JCClassDecl defaultVisitorDecl = makeDefaultVisitorDecl(jcClassDecl, visitorDecl);
-                    jcClassDecl.defs = jcClassDecl.defs.append(defaultVisitorDecl);
+                    JCTree.JCClassDecl defaultVisitorDecl = makeDefaultVisitorDecl(adtClassDef, visitorDecl);
+                    adtClassDef.defs = adtClassDef.defs.append(defaultVisitorDecl);
 
                     JCTree.JCMethodDecl matchMethodDecl = makeMatchMethodDecl(visitorDecl);
-                    jcClassDecl.defs = jcClassDecl.defs.append(matchMethodDecl);
+                    adtClassDef.defs = adtClassDef.defs.append(matchMethodDecl);
 
-                    for (JCTree.JCClassDecl subclassDecl : jcClassDeclList) {
-                        JCTree.JCMethodDecl subclassMatchDecl = makeSubclassMatchMethod(subclassDecl, visitorDecl);
-                        subclassDecl.defs = subclassDecl.defs.append(subclassMatchDecl);
+                    for (JCTree.JCClassDecl adtSubclassDecl : adtSubclassDeclList) {
+                        JCTree.JCMethodDecl matchMethodOverrideDecl = makeMatchMethodOverrideDecl(adtSubclassDecl, visitorDecl);
+                        adtSubclassDecl.defs = adtSubclassDecl.defs.append(matchMethodOverrideDecl);
                     }
                 }
             });
@@ -126,7 +126,7 @@ public class ADTProcessor extends AbstractProcessor {
         return false;
     }
 
-    private JCTree.JCClassDecl makeVisitorDecl(List<JCTree.JCClassDecl> jcClassDeclList) {
+    private JCTree.JCClassDecl makeVisitorDecl(List<JCTree.JCClassDecl> adtSubclassDeclList) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC | INTERFACE);
         Name name = names.fromString(VISITOR_INTERFACE);
         List<JCTree.JCTypeParameter> typarams = List.nil();
@@ -136,16 +136,16 @@ public class ADTProcessor extends AbstractProcessor {
 
         typarams = typarams.append(treeMaker.TypeParameter(names.T, List.nil()));
 
-        for (JCTree.JCClassDecl jcClassDecl : jcClassDeclList) {
-            defs = defs.append(makeCaseFunction(jcClassDecl));
+        for (JCTree.JCClassDecl adtSubclassDecl : adtSubclassDeclList) {
+            defs = defs.append(makeCaseMethodDecl(adtSubclassDecl));
         }
 
         return treeMaker.ClassDef(mods, name, typarams, extending, implementing, defs);
     }
 
-    private JCTree.JCMethodDecl makeCaseFunction(JCTree.JCClassDecl jcClassDecl) {
+    private JCTree.JCMethodDecl makeCaseMethodDecl(JCTree.JCClassDecl adtSubclassDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC);
-        Name name = names.fromString(CASE_PREFIX + jcClassDecl.name);
+        Name name = names.fromString(CASE_PREFIX + adtSubclassDecl.name);
         JCTree.JCIdent restype = treeMaker.Ident(names.T);
 
         List<JCTree.JCTypeParameter> typarams = List.nil();
@@ -157,7 +157,7 @@ public class ADTProcessor extends AbstractProcessor {
         JCTree.JCVariableDecl param = treeMaker.VarDef(
                 treeMaker.Modifiers(PARAMETER),
                 names.fromString(CASE_PARAM_NAME),
-                treeMaker.Ident(jcClassDecl.name),
+                treeMaker.Ident(adtSubclassDecl.name),
                 null
         );
         params = params.append(param);
@@ -165,7 +165,7 @@ public class ADTProcessor extends AbstractProcessor {
         return treeMaker.MethodDef(mods, name, restype, typarams, params, thrown, body, defaultValue);
     }
 
-    private JCTree.JCClassDecl makeDefaultVisitorDecl(JCTree.JCClassDecl jcClassDecl, JCTree.JCClassDecl visitorDecl) {
+    private JCTree.JCClassDecl makeDefaultVisitorDecl(JCTree.JCClassDecl adtClassDecl, JCTree.JCClassDecl visitorDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC | STATIC | ABSTRACT);
         Name name = names.fromString(DEFAULT_VISITOR_CLASS);
         List<JCTree.JCTypeParameter> typarams = List.nil();
@@ -176,7 +176,7 @@ public class ADTProcessor extends AbstractProcessor {
         typarams = typarams.append(treeMaker.TypeParameter(names.T, List.nil()));
         implementing = implementing.append(treeMaker.TypeApply(treeMaker.Ident(visitorDecl.name), List.<JCTree.JCExpression>nil().append(treeMaker.Ident(names.T))));
 
-        defs = defs.append(makeDefaultOtherwiseMethod(jcClassDecl));
+        defs = defs.append(makeOtherwiseMethodDecl(adtClassDecl));
         for (JCTree def : visitorDecl.defs) {
             if (!(def instanceof JCTree.JCMethodDecl)) {
                 continue;
@@ -184,20 +184,20 @@ public class ADTProcessor extends AbstractProcessor {
             if (!((JCTree.JCMethodDecl) def).name.toString().startsWith("case")) {
                 continue;
             }
-            defs = defs.append(makeDefaultCaseMethod((JCTree.JCMethodDecl) def));
+            defs = defs.append(makeCaseMethodOverrideDecl((JCTree.JCMethodDecl) def));
         }
 
         return treeMaker.ClassDef(mods, name, typarams, extending, implementing, defs);
     }
 
 
-    private JCTree.JCMethodDecl makeDefaultCaseMethod(JCTree.JCMethodDecl jcMethodDecl) {
-        JCTree.JCModifiers mods = jcMethodDecl.mods;
-        Name name = jcMethodDecl.name;
+    private JCTree.JCMethodDecl makeCaseMethodOverrideDecl(JCTree.JCMethodDecl caseMethodDecl) {
+        JCTree.JCModifiers mods = caseMethodDecl.mods;
+        Name name = caseMethodDecl.name;
         JCTree.JCIdent restype = treeMaker.Ident(names.T);
         List<JCTree.JCTypeParameter> typarams = List.nil();
-        List<JCTree.JCVariableDecl> params = jcMethodDecl.params;
-        List<JCTree.JCExpression> thrown = jcMethodDecl.thrown;
+        List<JCTree.JCVariableDecl> params = caseMethodDecl.params;
+        List<JCTree.JCExpression> thrown = caseMethodDecl.thrown;
         JCTree.JCBlock body = null;
 
         body = treeMaker.Block(0, List.<JCTree.JCStatement>nil().append(
@@ -211,7 +211,7 @@ public class ADTProcessor extends AbstractProcessor {
         return treeMaker.MethodDef(mods, name, restype, typarams, params, thrown, body, defaultValue);
     }
 
-    private JCTree makeDefaultOtherwiseMethod(JCTree.JCClassDecl jcClassDecl) {
+    private JCTree makeOtherwiseMethodDecl(JCTree.JCClassDecl adtClassDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC|ABSTRACT);
         Name name = names.fromString(OTHERWISE_FUNCTION);
         JCTree.JCIdent restype = treeMaker.Ident(names.T);
@@ -224,7 +224,7 @@ public class ADTProcessor extends AbstractProcessor {
         JCTree.JCVariableDecl param = treeMaker.VarDef(
                 treeMaker.Modifiers(PARAMETER),
                 names.fromString(CASE_PARAM_NAME),
-                treeMaker.Ident(jcClassDecl.name),
+                treeMaker.Ident(adtClassDecl.name),
                 null
         );
         params = params.append(param);
@@ -256,7 +256,7 @@ public class ADTProcessor extends AbstractProcessor {
     }
 
 
-    private JCTree.JCMethodDecl makeSubclassMatchMethod(JCTree.JCClassDecl subclassDecl, JCTree.JCClassDecl visitorDecl) {
+    private JCTree.JCMethodDecl makeMatchMethodOverrideDecl(JCTree.JCClassDecl subclassDecl, JCTree.JCClassDecl visitorDecl) {
         JCTree.JCModifiers mods = treeMaker.Modifiers(PUBLIC);
         Name name = names.fromString(MATCH_FUNCTION);
         JCTree.JCIdent restype = treeMaker.Ident(names.T);
